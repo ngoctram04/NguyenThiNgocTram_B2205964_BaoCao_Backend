@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "name": "nguyenthingoctram_b2205964_baocao_backend",
   "version": "1.0.0",
   "description": "",
@@ -10,12 +11,17 @@
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "mongodb": "^6.20.0",
+    "mongoose": "^8.19.2"
   },
   "devDependencies": {
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
     "nodemon": "^3.1.10",
+    "dotenv": "^16.0.0",
     "prettier": "^3.6.2"
+    
   }
 }
