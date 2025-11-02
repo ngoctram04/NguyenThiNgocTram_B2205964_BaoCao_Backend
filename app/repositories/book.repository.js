@@ -15,18 +15,33 @@ export default {
 
   async insert(book) {
     const db = MongoDB.getDB();
-    return await db.collection(collectionName).insertOne(book);
+
+    if (!book.MaSach) {
+      book.MaSach = Date.now().toString();
+    }
+
+    const result = await db.collection(collectionName).insertOne(book);
+
+    return { _id: result.insertedId, ...book };
   },
+
 
   async update(id, data) {
     const db = MongoDB.getDB();
-    return await db
+
+    delete data._id;
+
+    const result = await db
       .collection(collectionName)
       .updateOne({ MaSach: id }, { $set: data });
+
+    return result; 
   },
 
+ 
   async delete(id) {
     const db = MongoDB.getDB();
-    return await db.collection(collectionName).deleteOne({ MaSach: id });
+    const result = await db.collection(collectionName).deleteOne({ MaSach: id });
+    return result; 
   },
 };
