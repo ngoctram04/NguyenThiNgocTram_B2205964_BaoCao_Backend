@@ -6,7 +6,10 @@ export const getAllBooks = async (req, res) => {
     const books = await bookRepo.findAll();
     res.status(200).json(books);
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi lấy danh sách sách", error });
+    res.status(500).json({
+      message: "Lỗi khi lấy danh sách sách",
+      error: error.message || error,
+    });
   }
 };
 
@@ -16,7 +19,10 @@ export const getBookById = async (req, res) => {
     if (!book) return res.status(404).json({ message: "Không tìm thấy sách" });
     res.status(200).json(book);
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi lấy sách", error });
+    res.status(500).json({
+      message: "Lỗi khi lấy sách",
+      error: error.message || error,
+    });
   }
 };
 
@@ -35,16 +41,22 @@ export const createBook = async (req, res) => {
       TenSach,
       DonGia: Number(DonGia),
       SoQuyen: Number(SoQuyen),
-      NamXuatBan,
-      MaNXB,
-      TacGia,
+      NamXuatBan: Number(NamXuatBan),
+      MaNXB: MaNXB || "",
+      TacGia: TacGia || "",
       HinhAnh: `/uploads/${req.file.filename}`,
     };
 
     const insertedBook = await bookRepo.insert(book);
-    res.status(201).json({ message: "Thêm sách thành công!", book: insertedBook });
+    res.status(201).json({
+      message: "Thêm sách thành công!",
+      book: insertedBook,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi thêm sách", error });
+    res.status(500).json({
+      message: "Lỗi khi thêm sách",
+      error: error.message || error,
+    });
   }
 };
 
@@ -61,9 +73,18 @@ export const updateBook = async (req, res) => {
     if (!result.matchedCount)
       return res.status(404).json({ message: "Không tìm thấy sách để cập nhật" });
 
-    res.status(200).json({ message: "Cập nhật sách thành công!" });
+
+    const updatedBook = await bookRepo.findById(req.params.id);
+
+    res.status(200).json({
+      message: "Cập nhật sách thành công!",
+      book: updatedBook,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi cập nhật sách", error });
+    res.status(500).json({
+      message: "Lỗi khi cập nhật sách",
+      error: error.message || error,
+    });
   }
 };
 
@@ -76,6 +97,9 @@ export const deleteBook = async (req, res) => {
 
     res.status(200).json({ message: "Xóa sách thành công!" });
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi xóa sách", error });
+    res.status(500).json({
+      message: "Lỗi khi xóa sách",
+      error: error.message || error,
+    });
   }
 };
