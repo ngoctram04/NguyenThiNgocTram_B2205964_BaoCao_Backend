@@ -13,6 +13,11 @@ export default {
     return await db.collection(collectionName).findOne({ MSNV: id });
   },
 
+  async findByUsername(MSNV) {
+    const db = MongoDB.getDB();
+    return await db.collection(collectionName).findOne({ MSNV });
+  },
+
   async insert(staff) {
     const db = MongoDB.getDB();
     return await db.collection(collectionName).insertOne(staff);
