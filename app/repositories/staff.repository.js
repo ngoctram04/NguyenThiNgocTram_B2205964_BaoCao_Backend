@@ -1,37 +1,56 @@
 import MongoDB from "../utils/mongodb.util.js";
+import bcrypt from "bcryptjs";
 
-const collectionName = "NhanVien";
+const COLLECTION_NAME = "NhanVien";
+
+const collection = () => MongoDB.getDB().collection(COLLECTION_NAME);
 
 export default {
-  async findAll() {
-    const db = MongoDB.getDB();
-    return await db.collection(collectionName).find().toArray();
+  async createStaff(data) {
+    try {
+      const hashed = await bcrypt.hash(data.Password, 10);
+      data.Password = hashed;
+      const result = await collection().insertOne(data);
+      return { _id: result.insertedId, ...data };
+    } catch (err) {
+      throw new Error("Lỗi khi tạo nhân viên: " + err.message);
+    }
   },
 
-  async findById(id) {
-    const db = MongoDB.getDB();
-    return await db.collection(collectionName).findOne({ MSNV: id });
+  async getStaffByMSNV(MSNV) {
+    try {
+      return await collection().findOne({ MSNV });
+    } catch (err) {
+      throw new Error("Lỗi khi tìm nhân viên: " + err.message);
+    }
   },
 
-  async findByUsername(MSNV) {
-    const db = MongoDB.getDB();
-    return await db.collection(collectionName).findOne({ MSNV });
+  async getAllStaffs() {
+    try {
+      return await collection().find().toArray();
+    } catch (err) {
+      throw new Error("Lỗi khi lấy danh sách nhân viên: " + err.message);
+    }
   },
 
-  async insert(staff) {
-    const db = MongoDB.getDB();
-    return await db.collection(collectionName).insertOne(staff);
+  async updateStaff(MSNV, data) {
+    try {
+      if (data.Password) {
+        data.Password = await bcrypt.hash(data.Password, 10);
+      }
+      const result = await collection().updateOne({ MSNV }, { $set: data });
+      return result;
+    } catch (err) {
+      throw new Error("Lỗi khi cập nhật nhân viên: " + err.message);
+    }
   },
 
-  async update(id, data) {
-    const db = MongoDB.getDB();
-    return await db
-      .collection(collectionName)
-      .updateOne({ MSNV: id }, { $set: data });
-  },
-
-  async delete(id) {
-    const db = MongoDB.getDB();
-    return await db.collection(collectionName).deleteOne({ MSNV: id });
+  async deleteStaff(MSNV) {
+    try {
+      const result = await collection().deleteOne({ MSNV });
+      return result;
+    } catch (err) {
+      throw new Error("Lỗi khi xóa nhân viên: " + err.message);
+    }
   },
 };

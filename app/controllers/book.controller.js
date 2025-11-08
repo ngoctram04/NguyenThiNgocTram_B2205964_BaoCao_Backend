@@ -1,105 +1,121 @@
-import { ObjectId } from "mongodb";
-import bookRepo from "../repositories/book.repository.js";
+import MongoDB from "../utils/mongodb.util.js";
+import path from "path";
+
+const COLLECTION_NAME = "SACH";
 
 export const getAllBooks = async (req, res) => {
   try {
-    const books = await bookRepo.findAll();
-    res.status(200).json(books);
-  } catch (error) {
-    res.status(500).json({
-      message: "Lỗi khi lấy danh sách sách",
-      error: error.message || error,
-    });
+    const db = MongoDB.getDB();
+    const books = await db.collection(COLLECTION_NAME).find().toArray();
+    const formatted = books.map(b => ({
+      ...b,
+      _id: b._id.toString(),
+      MaSach: b.MaSach.toString()
+    }));
+    res.json(formatted);
+  } catch (err) {
+    console.error("getAllBooks error:", err);
+    res.status(500).json({ message: "Lỗi khi lấy sách", error: err.message });
   }
 };
 
 export const getBookById = async (req, res) => {
   try {
-    const book = await bookRepo.findById(req.params.id);
+    const { id } = req.params;
+    const db = MongoDB.getDB();
+    const book = await db.collection(COLLECTION_NAME).findOne({ MaSach: id });
+
     if (!book) return res.status(404).json({ message: "Không tìm thấy sách" });
-    res.status(200).json(book);
-  } catch (error) {
-    res.status(500).json({
-      message: "Lỗi khi lấy sách",
-      error: error.message || error,
+
+    res.json({
+      ...book,
+      _id: book._id.toString(),
+      MaSach: book.MaSach.toString()
     });
+  } catch (err) {
+    console.error("getBookById error:", err);
+    res.status(500).json({ message: "Lỗi khi lấy sách", error: err.message });
   }
 };
 
 export const createBook = async (req, res) => {
   try {
-    const { TenSach, DonGia, SoQuyen, NamXuatBan, MaNXB, TacGia } = req.body;
+    const db = MongoDB.getDB();
+    const { MaSach, TenSach, DonGia, SoQuyen, NamXuatBan, MaNXB, TacGia } = req.body || {};
 
-    if (!TenSach || !DonGia || !SoQuyen)
-      return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
+    if (!TenSach) return res.status(400).json({ message: "Tên sách là bắt buộc" });
 
-    if (!req.file)
-      return res.status(400).json({ message: "Hình ảnh là bắt buộc!" });
+    let finalMaSach = MaSach;
+    if (!MaSach) {
+      const allBooks = await db.collection(COLLECTION_NAME).find().toArray();
+      const maxId = allBooks.reduce((max, b) => Math.max(max, parseInt(b.MaSach || 0, 10)), 0);
+      finalMaSach = (maxId + 1).toString();
+    }
 
-    const book = {
-      MaSach: new ObjectId().toString(),
+    const exist = await db.collection(COLLECTION_NAME).findOne({ MaSach: finalMaSach });
+    if (exist) return res.status(400).json({ message: "Mã sách đã tồn tại" });
+
+    let HinhAnh = "";
+    if (req.file) HinhAnh = `/uploads/${req.file.filename}`;
+
+    const newBook = {
+      MaSach: finalMaSach,
       TenSach,
-      DonGia: Number(DonGia),
-      SoQuyen: Number(SoQuyen),
-      NamXuatBan: Number(NamXuatBan),
+      DonGia: DonGia ? Number(DonGia) : 0,
+      SoQuyen: SoQuyen ? Number(SoQuyen) : 1,
+      NamXuatBan: NamXuatBan || "",
       MaNXB: MaNXB || "",
       TacGia: TacGia || "",
-      HinhAnh: `/uploads/${req.file.filename}`,
+      HinhAnh
     };
 
-    const insertedBook = await bookRepo.insert(book);
-    res.status(201).json({
-      message: "Thêm sách thành công!",
-      book: insertedBook,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Lỗi khi thêm sách",
-      error: error.message || error,
-    });
+    await db.collection(COLLECTION_NAME).insertOne(newBook);
+    res.status(201).json({ message: "Tạo sách thành công", data: newBook });
+  } catch (err) {
+    console.error("createBook error:", err);
+    res.status(500).json({ message: "Lỗi khi tạo sách", error: err.message });
   }
 };
 
 export const updateBook = async (req, res) => {
   try {
-    const data = { ...req.body };
+    const { id } = req.params;
+    const db = MongoDB.getDB();
+    const updateData = req.body || {};
 
-    if (req.file) {
-      data.HinhAnh = `/uploads/${req.file.filename}`;
-    }
+    if (req.file) updateData.HinhAnh = `/uploads/${req.file.filename}`;
 
-    const result = await bookRepo.update(req.params.id, data);
+    if (updateData.DonGia) updateData.DonGia = Number(updateData.DonGia);
+    if (updateData.SoQuyen) updateData.SoQuyen = Number(updateData.SoQuyen);
 
-    if (!result.matchedCount)
-      return res.status(404).json({ message: "Không tìm thấy sách để cập nhật" });
+    const result = await db.collection(COLLECTION_NAME).updateOne(
+      { MaSach: id },
+      { $set: updateData }
+    );
 
+    if (result.matchedCount === 0)
+      return res.status(404).json({ message: "Không tìm thấy sách" });
 
-    const updatedBook = await bookRepo.findById(req.params.id);
-
-    res.status(200).json({
-      message: "Cập nhật sách thành công!",
-      book: updatedBook,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Lỗi khi cập nhật sách",
-      error: error.message || error,
-    });
+    const updatedBook = await db.collection(COLLECTION_NAME).findOne({ MaSach: id });
+    res.json({ message: "Cập nhật sách thành công", data: { ...updatedBook, _id: updatedBook._id.toString() } });
+  } catch (err) {
+    console.error("updateBook error:", err);
+    res.status(500).json({ message: "Lỗi khi cập nhật sách", error: err.message });
   }
 };
 
 export const deleteBook = async (req, res) => {
   try {
-    const result = await bookRepo.delete(req.params.id);
+    const { id } = req.params;
+    const db = MongoDB.getDB();
 
+    const result = await db.collection(COLLECTION_NAME).deleteOne({ MaSach: id });
     if (result.deletedCount === 0)
       return res.status(404).json({ message: "Không tìm thấy sách để xóa" });
 
-    res.status(200).json({ message: "Xóa sách thành công!" });
-  } catch (error) {
-    res.status(500).json({
-      message: "Lỗi khi xóa sách",
-      error: error.message || error,
-    });
+    res.json({ message: "Xóa sách thành công" });
+  } catch (err) {
+    console.error("deleteBook error:", err);
+    res.status(500).json({ message: "Lỗi khi xóa sách", error: err.message });
   }
 };

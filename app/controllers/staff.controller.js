@@ -1,65 +1,106 @@
-import Staff from "../repositories/staff.repository.js";
+import MongoDB from "../utils/mongodb.util.js";
 import bcrypt from "bcryptjs";
 
-// Lấy tất cả nhân viên
-export async function getAll(req, res) {
-  const staffs = await Staff.findAll();
-  res.json(staffs);
-}
+export const getAllStaffs = async (req, res) => {
+  try {
+    const db = MongoDB.getDB();
+    const staffs = await db.collection("NhanVien").find().toArray();
 
-// Lấy nhân viên theo MSNV
-export async function getById(req, res) {
-  const staff = await Staff.findById(req.params.id);
-  if (!staff) return res.status(404).json({ message: "Không tìm thấy nhân viên" });
-  res.json(staff);
-}
+    const formattedStaffs = staffs.map(({ Password, ...rest }) => ({
+      ...rest,
+      _id: rest._id.toString(),
+    }));
 
-// Thêm nhân viên mới
-export async function create(req, res) {
-  const { MSNV, HoTenNV, Password, Chucvu, Diachi, SoDienThoai } = req.body;
-
-  // Hash password
-  const hashed = await bcrypt.hash(Password, 10);
-
-  const staff = {
-    MSNV,
-    HoTenNV,
-    Password: hashed,
-    Chucvu,
-    Diachi,
-    SoDienThoai,
-  };
-
-  const result = await Staff.insert(staff);
-  res.json({ message: "Thêm nhân viên thành công", staff: result });
-}
-
-// Cập nhật nhân viên
-export async function update(req, res) {
-  const { Password, ...data } = req.body;
-  if (Password) {
-    data.Password = await bcrypt.hash(Password, 10);
+    res.json(formattedStaffs);
+  } catch (err) {
+    console.error("Get all staffs error:", err);
+    res.status(500).json({ message: "Lỗi server khi lấy danh sách nhân viên" });
   }
+};
 
-  await Staff.update(req.params.id, data);
-  res.json({ message: "Cập nhật nhân viên thành công" });
-}
 
-// Xóa nhân viên
-export async function deleteStaff(req, res) {
-  await Staff.delete(req.params.id);
-  res.json({ message: "Xóa nhân viên thành công" });
-}
+export const createStaff = async (req, res) => {
+  try {
+    const { MSNV, HoTenNV, Password, Chucvu, Diachi, SoDienThoai } = req.body;
 
-// Login
-export async function login(req, res) {
-  const { MSNV, Password } = req.body;
+    if (!MSNV || !HoTenNV || !Password || !Chucvu) {
+      return res.status(400).json({ message: "MSNV, HoTenNV, Password và Chucvu là bắt buộc" });
+    }
 
-  const staff = await Staff.findById(MSNV);
-  if (!staff) return res.status(404).json({ message: "Không tìm thấy nhân viên" });
+    const db = MongoDB.getDB();
 
-  const isMatch = await bcrypt.compare(Password, staff.Password);
-  if (!isMatch) return res.status(400).json({ message: "Mật khẩu không đúng" });
+    const existing = await db.collection("NhanVien").findOne({ MSNV });
+    if (existing) {
+      return res.status(400).json({ message: `Mã nhân viên ${MSNV} đã tồn tại` });
+    }
 
-  res.json({ message: "Đăng nhập thành công", staff });
-}
+    const hashedPassword = await bcrypt.hash(Password, 10);
+
+    await db.collection("NhanVien").insertOne({
+      MSNV,
+      HoTenNV,
+      Password: hashedPassword,
+      Chucvu: Chucvu.toLowerCase(),
+      Diachi: Diachi || "",
+      SoDienThoai: SoDienThoai || "",
+      isDefaultAdmin: false,
+    });
+
+    res.status(201).json({ message: "Tạo nhân viên thành công" });
+  } catch (err) {
+    console.error("Create staff error:", err);
+    res.status(500).json({ message: "Lỗi server khi tạo nhân viên" });
+  }
+};
+
+export const updateStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { HoTenNV, Password, Chucvu, Diachi, SoDienThoai } = req.body;
+    const db = MongoDB.getDB();
+
+    if (id === "AD001" && Chucvu && Chucvu.toLowerCase() !== "admin") {
+      return res.status(403).json({ message: "Không thể đổi role admin mặc định" });
+    }
+
+    const updateData = {};
+    if (HoTenNV) updateData.HoTenNV = HoTenNV;
+    if (Chucvu) updateData.Chucvu = Chucvu.toLowerCase();
+    if (Diachi) updateData.Diachi = Diachi;
+    if (SoDienThoai) updateData.SoDienThoai = SoDienThoai;
+    if (Password) updateData.Password = await bcrypt.hash(Password, 10);
+
+    const result = await db.collection("NhanVien").updateOne({ MSNV: id }, { $set: updateData });
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: `Không tìm thấy nhân viên ${id}` });
+    }
+
+    res.json({ message: "Cập nhật nhân viên thành công" });
+  } catch (err) {
+    console.error("Update staff error:", err);
+    res.status(500).json({ message: "Lỗi server khi cập nhật nhân viên" });
+  }
+};
+
+export const deleteStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (id === "AD001") {
+      return res.status(403).json({ message: "Không thể xóa admin mặc định" });
+    }
+
+    const db = MongoDB.getDB();
+    const result = await db.collection("NhanVien").deleteOne({ MSNV: id });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: `Không tìm thấy nhân viên ${id} để xóa` });
+    }
+
+    res.json({ message: "Xóa nhân viên thành công" });
+  } catch (err) {
+    console.error("Delete staff error:", err);
+    res.status(500).json({ message: "Lỗi server khi xóa nhân viên" });
+  }
+};
