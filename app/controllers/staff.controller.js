@@ -104,3 +104,13 @@ export const deleteStaff = async (req, res) => {
     res.status(500).json({ message: "Lỗi server khi xóa nhân viên" });
   }
 };
+export const getStaffCount = async (req, res) => {
+  try {
+    const db = MongoDB.getDB();
+    const count = await db.collection("NhanVien").countDocuments();
+    res.json({ count });
+  } catch (err) {
+    console.error("Get staff count error:", err);
+    res.status(500).json({ message: "Lỗi server khi lấy tổng số nhân viên" });
+  }
+};

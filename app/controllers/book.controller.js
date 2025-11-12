@@ -1,8 +1,8 @@
 import MongoDB from "../utils/mongodb.util.js";
-import path from "path";
 
 const COLLECTION_NAME = "SACH";
 
+// Lấy tất cả sách
 export const getAllBooks = async (req, res) => {
   try {
     const db = MongoDB.getDB();
@@ -10,7 +10,7 @@ export const getAllBooks = async (req, res) => {
     const formatted = books.map(b => ({
       ...b,
       _id: b._id.toString(),
-      MaSach: b.MaSach.toString()
+      MaSach: b.MaSach?.toString() || ""
     }));
     res.json(formatted);
   } catch (err) {
@@ -19,6 +19,7 @@ export const getAllBooks = async (req, res) => {
   }
 };
 
+// Lấy sách theo id
 export const getBookById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -30,7 +31,7 @@ export const getBookById = async (req, res) => {
     res.json({
       ...book,
       _id: book._id.toString(),
-      MaSach: book.MaSach.toString()
+      MaSach: book.MaSach?.toString() || ""
     });
   } catch (err) {
     console.error("getBookById error:", err);
@@ -38,25 +39,28 @@ export const getBookById = async (req, res) => {
   }
 };
 
+// Tạo sách mới
 export const createBook = async (req, res) => {
   try {
     const db = MongoDB.getDB();
-    const { MaSach, TenSach, DonGia, SoQuyen, NamXuatBan, MaNXB, TacGia } = req.body || {};
+    const { MaSach, TenSach, DonGia, SoQuyen, NamXuatBan, MaNXB, TacGia } = req.body;
 
     if (!TenSach) return res.status(400).json({ message: "Tên sách là bắt buộc" });
 
+    // Tạo MaSach nếu chưa có
     let finalMaSach = MaSach;
     if (!MaSach) {
       const allBooks = await db.collection(COLLECTION_NAME).find().toArray();
-      const maxId = allBooks.reduce((max, b) => Math.max(max, parseInt(b.MaSach || 0, 10)), 0);
+      const maxId = allBooks.reduce((max, b) => Math.max(max, parseInt(b.MaSach || "0", 10)), 0);
       finalMaSach = (maxId + 1).toString();
     }
 
+    // Kiểm tra trùng MaSach
     const exist = await db.collection(COLLECTION_NAME).findOne({ MaSach: finalMaSach });
     if (exist) return res.status(400).json({ message: "Mã sách đã tồn tại" });
 
-    let HinhAnh = "";
-    if (req.file) HinhAnh = `/uploads/${req.file.filename}`;
+    // Xử lý hình ảnh
+    const HinhAnh = req.file ? `/uploads/${req.file.filename}` : "";
 
     const newBook = {
       MaSach: finalMaSach,
@@ -81,7 +85,7 @@ export const updateBook = async (req, res) => {
   try {
     const { id } = req.params;
     const db = MongoDB.getDB();
-    const updateData = req.body || {};
+    const updateData = { ...req.body };
 
     if (req.file) updateData.HinhAnh = `/uploads/${req.file.filename}`;
 
@@ -97,7 +101,14 @@ export const updateBook = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy sách" });
 
     const updatedBook = await db.collection(COLLECTION_NAME).findOne({ MaSach: id });
-    res.json({ message: "Cập nhật sách thành công", data: { ...updatedBook, _id: updatedBook._id.toString() } });
+    res.json({
+      message: "Cập nhật sách thành công",
+      data: {
+        ...updatedBook,
+        _id: updatedBook._id.toString(),
+        MaSach: updatedBook.MaSach?.toString() || ""
+      }
+    });
   } catch (err) {
     console.error("updateBook error:", err);
     res.status(500).json({ message: "Lỗi khi cập nhật sách", error: err.message });
