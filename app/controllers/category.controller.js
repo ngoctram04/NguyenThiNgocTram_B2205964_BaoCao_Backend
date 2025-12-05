@@ -1,46 +1,80 @@
-import categoryRepo from '../repositories/category.repository.js';
+import CategoryRepository from "../repositories/category.repository.js";
 
+export default {
+  async getAll(req, res) {
+    try {
+      const categories = await CategoryRepository.findAll();
+      res.json(categories);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Lỗi server", error: err.message });
+    }
+  },
+
+  async getById(req, res) {
+    try {
+      const category = await CategoryRepository.findById(req.params.id);
+      res.json(category);
+    } catch (err) {
+      console.error(err);
+      if (err.message.includes("Không tìm thấy")) {
+        return res.status(404).json({ message: err.message });
+      }
+      if (err.message.includes("ID không hợp lệ")) {
+        return res.status(400).json({ message: err.message });
+      }
+      res.status(500).json({ message: "Lỗi server", error: err.message });
+    }
+  },
+
+  async create(req, res) {
+    try {
+      const category = await CategoryRepository.insert(req.body);
+      res.status(201).json({ message: "Thêm thể loại thành công", category });
+    } catch (err) {
+      console.error(err);
+      if (err.message.includes("bắt buộc")) {
+        return res.status(400).json({ message: err.message });
+      }
+      res.status(500).json({ message: "Lỗi server", error: err.message });
+    }
+  },
+
+  async update(req, res) {
+    try {
+      await CategoryRepository.update(req.params.id, req.body);
+      res.json({ message: "Cập nhật thể loại thành công" });
+    } catch (err) {
+      console.error(err);
+      if (err.message.includes("Không tìm thấy")) {
+        return res.status(404).json({ message: err.message });
+      }
+      if (err.message.includes("bắt buộc") || err.message.includes("ID không hợp lệ")) {
+        return res.status(400).json({ message: err.message });
+      }
+      res.status(500).json({ message: "Lỗi server", error: err.message });
+    }
+  },
+
+  async delete(req, res) {
+    try {
+      await CategoryRepository.delete(req.params.id);
+      res.json({ message: "Xóa thể loại thành công" });
+    } catch (err) {
+      console.error(err);
+      if (err.message.includes("Không tìm thấy") || err.message.includes("ID không hợp lệ")) {
+        return res.status(400).json({ message: err.message });
+      }
+      res.status(500).json({ message: "Lỗi server", error: err.message });
+    }
+  },
+};
 export const getAllCategories = async (req, res) => {
   try {
-    const categories = await categoryRepo.findAll();
-    res.status(200).json(categories);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching categories", error });
-  }
-};
-
-export const createCategory = async (req, res) => {
-  try {
-    const category = await categoryRepo.insert(req.body);
-    res.status(201).json(category);
-  } catch (error) {
-    res.status(500).json({ message: "Error creating category", error });
-  }
-};
-
-export const getCategoryById = async (req, res) => {
-  try {
-    const category = await categoryRepo.findById(req.params.id);
-    res.status(200).json(category);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching category", error });
-  }
-};
-
-export const updateCategory = async (req, res) => {
-  try {
-    const result = await categoryRepo.update(req.params.id, req.body);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ message: "Error updating category", error });
-  }
-};
-
-export const deleteCategory = async (req, res) => {
-  try {
-    const result = await categoryRepo.delete(req.params.id);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ message: "Error deleting category", error });
+    const categories = await CategoryRepository.findAll();
+    res.json(categories);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server", error: err.message });
   }
 };

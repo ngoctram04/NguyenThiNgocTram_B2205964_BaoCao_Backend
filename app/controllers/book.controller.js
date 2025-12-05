@@ -1,17 +1,59 @@
+import { ObjectId } from "mongodb";
 import MongoDB from "../utils/mongodb.util.js";
 
 const COLLECTION_NAME = "SACH";
+const PUBLISHER_COLLECTION = "NXB";
+const CATEGORY_COLLECTION = "THELOAI";
 
-// Lấy tất cả sách
+const isValidObjectId = (id) => ObjectId.isValid(id);
+
 export const getAllBooks = async (req, res) => {
   try {
     const db = MongoDB.getDB();
-    const books = await db.collection(COLLECTION_NAME).find().toArray();
+    const { q } = req.query;
+
+    const matchStage = {};
+    if (q) {
+      const regex = new RegExp(q.trim(), "i");
+      matchStage.$or = [{ TenSach: regex }, { TacGia: regex }];
+    }
+
+    const books = await db.collection(COLLECTION_NAME).aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: PUBLISHER_COLLECTION,
+          localField: "MaNXB",
+          foreignField: "_id",
+          as: "NXB"
+        }
+      },
+      {
+        $lookup: {
+          from: CATEGORY_COLLECTION,
+          localField: "MaTL",
+          foreignField: "_id",
+          as: "TheLoai"
+        }
+      },
+      {
+        $addFields: {
+          TenNXB: { $arrayElemAt: ["$NXB.TenNXB", 0] },
+          DiaChiNXB: { $arrayElemAt: ["$NXB.DiaChi", 0] },
+          TenTL: { $arrayElemAt: ["$TheLoai.TenTL", 0] }
+        }
+      },
+      { $project: { NXB: 0, TheLoai: 0 } }
+    ]).toArray();
+
     const formatted = books.map(b => ({
       ...b,
       _id: b._id.toString(),
-      MaSach: b.MaSach?.toString() || ""
+      MaSach: b.MaSach?.toString() || "",
+      MaNXB: b.MaNXB?.toString() || "",
+      MaTL: b.MaTL?.toString() || ""
     }));
+
     res.json(formatted);
   } catch (err) {
     console.error("getAllBooks error:", err);
@@ -19,19 +61,47 @@ export const getAllBooks = async (req, res) => {
   }
 };
 
-// Lấy sách theo id
 export const getBookById = async (req, res) => {
   try {
     const { id } = req.params;
     const db = MongoDB.getDB();
-    const book = await db.collection(COLLECTION_NAME).findOne({ MaSach: id });
+
+    const book = await db.collection(COLLECTION_NAME).aggregate([
+      { $match: { MaSach: id } },
+      {
+        $lookup: {
+          from: PUBLISHER_COLLECTION,
+          localField: "MaNXB",
+          foreignField: "_id",
+          as: "NXB"
+        }
+      },
+      {
+        $lookup: {
+          from: CATEGORY_COLLECTION,
+          localField: "MaTL",
+          foreignField: "_id",
+          as: "TheLoai"
+        }
+      },
+      {
+        $addFields: {
+          TenNXB: { $arrayElemAt: ["$NXB.TenNXB", 0] },
+          DiaChiNXB: { $arrayElemAt: ["$NXB.DiaChi", 0] },
+          TenTL: { $arrayElemAt: ["$TheLoai.TenTL", 0] }
+        }
+      },
+      { $project: { NXB: 0, TheLoai: 0 } }
+    ]).next();
 
     if (!book) return res.status(404).json({ message: "Không tìm thấy sách" });
 
     res.json({
       ...book,
       _id: book._id.toString(),
-      MaSach: book.MaSach?.toString() || ""
+      MaSach: book.MaSach?.toString() || "",
+      MaNXB: book.MaNXB?.toString() || "",
+      MaTL: book.MaTL?.toString() || ""
     });
   } catch (err) {
     console.error("getBookById error:", err);
@@ -39,15 +109,13 @@ export const getBookById = async (req, res) => {
   }
 };
 
-// Tạo sách mới
 export const createBook = async (req, res) => {
   try {
     const db = MongoDB.getDB();
-    const { MaSach, TenSach, DonGia, SoQuyen, NamXuatBan, MaNXB, TacGia } = req.body;
+    const { MaSach, TenSach, DonGia, SoQuyen, NamXuatBan, MaNXB, TacGia, MaTL } = req.body;
 
     if (!TenSach) return res.status(400).json({ message: "Tên sách là bắt buộc" });
 
-    // Tạo MaSach nếu chưa có
     let finalMaSach = MaSach;
     if (!MaSach) {
       const allBooks = await db.collection(COLLECTION_NAME).find().toArray();
@@ -55,11 +123,9 @@ export const createBook = async (req, res) => {
       finalMaSach = (maxId + 1).toString();
     }
 
-    // Kiểm tra trùng MaSach
     const exist = await db.collection(COLLECTION_NAME).findOne({ MaSach: finalMaSach });
     if (exist) return res.status(400).json({ message: "Mã sách đã tồn tại" });
 
-    // Xử lý hình ảnh
     const HinhAnh = req.file ? `/uploads/${req.file.filename}` : "";
 
     const newBook = {
@@ -69,6 +135,7 @@ export const createBook = async (req, res) => {
       SoQuyen: SoQuyen ? Number(SoQuyen) : 1,
       NamXuatBan: NamXuatBan || "",
       MaNXB: MaNXB || "",
+      MaTL: MaTL || "",
       TacGia: TacGia || "",
       HinhAnh
     };
@@ -88,19 +155,15 @@ export const updateBook = async (req, res) => {
     const updateData = { ...req.body };
 
     if (req.file) updateData.HinhAnh = `/uploads/${req.file.filename}`;
-
     if (updateData.DonGia) updateData.DonGia = Number(updateData.DonGia);
     if (updateData.SoQuyen) updateData.SoQuyen = Number(updateData.SoQuyen);
 
-    const result = await db.collection(COLLECTION_NAME).updateOne(
-      { MaSach: id },
-      { $set: updateData }
-    );
-
+    const result = await db.collection(COLLECTION_NAME).updateOne({ MaSach: id }, { $set: updateData });
     if (result.matchedCount === 0)
       return res.status(404).json({ message: "Không tìm thấy sách" });
 
     const updatedBook = await db.collection(COLLECTION_NAME).findOne({ MaSach: id });
+
     res.json({
       message: "Cập nhật sách thành công",
       data: {

@@ -1,8 +1,6 @@
-// src/app/middlewares/authUser.js
 import jwt from "jsonwebtoken";
 import config from "../config/index.js";
 
-// Middleware bắt buộc login user (độc giả)
 export const authUser = (req, res, next) => {
   try {
     const authHeader = req.headers["authorization"];
@@ -14,10 +12,9 @@ export const authUser = (req, res, next) => {
     if (!token) {
       return res.status(401).json({ message: "Token không hợp lệ" });
     }
-
     const decoded = jwt.verify(token, config.app.jwtSecret);
 
-    req.user = decoded; // { MaDocGia, username, role: "reader", ... }
+    req.user = decoded;
     next();
   } catch (err) {
     console.error("AuthUser Middleware Error:", err.message);
@@ -25,7 +22,6 @@ export const authUser = (req, res, next) => {
   }
 };
 
-// Kiểm tra role độc giả
 export const readerOnly = (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: "Chưa xác thực" });
 
@@ -37,13 +33,12 @@ export const readerOnly = (req, res, next) => {
   next();
 };
 
-// Admin hoặc chính user (nếu muốn route như chỉnh sửa profile)
 export const adminOrSelf = (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: "Chưa xác thực" });
 
   const role = req.user.role?.toLowerCase();
-  const userId = req.user.MaDocGia;
-  const paramId = req.params.id;
+  const userId = req.user.MaDocGia?.toString();
+  const paramId = req.params.id?.toString();
 
   if (role === "admin" || userId === paramId) {
     return next();

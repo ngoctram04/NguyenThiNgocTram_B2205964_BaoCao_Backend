@@ -20,7 +20,6 @@ export const login = async (req, res) => {
     const isMatch = await bcrypt.compare(Password, staff.Password);
     if (!isMatch) return res.status(400).json({ message: "Sai mật khẩu" });
 
-    // Tạo token JWT
     const token = jwt.sign(
       { MSNV: staff.MSNV, Chucvu: staff.Chucvu.toLowerCase() },
       config.app.jwtSecret,
@@ -42,9 +41,9 @@ export const createDefaultAdmin = async () => {
 
     const existingAdmin = await db.collection("NhanVien").findOne({ MSNV: "AD001" });
 
-    if (existingAdmin) return; // Nếu admin mặc định đã tồn tại thì không tạo nữa
+    if (existingAdmin) return;
 
-    const hashedPassword = await bcrypt.hash("admin123", 10); // mật khẩu mặc định
+    const hashedPassword = await bcrypt.hash("admin123", 10);
 
     await db.collection("NhanVien").insertOne({
       MSNV: "AD001",
